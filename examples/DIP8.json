@@ -1,0 +1,17 @@
+{
+  "part_number": "NE555P",
+  "manufacturer": "Texas Instruments",
+  "description": "Timer, PDIP-8",
+  "pins": [
+    {"number": "1", "name": "GND", "electrical_type": "power_in"},
+    {"number": "2", "name": "TRIG", "electrical_type": "input"},
+    {"number": "3", "name": "OUT", "electrical_type": "output"},
+    {"number": "4", "name": "~{RESET}", "electrical_type": "input"},
+    {"number": "5", "name": "CONT", "electrical_type": "input"},
+    {"number": "6", "name": "THRES", "electrical_type": "input"},
+    {"number": "7", "name": "DISCH", "electrical_type": "open_collector"},
+    {"number": "8", "name": "VCC", "electrical_type": "power_in"}
+  ],
+  "package": {"name": "DIP-8", "family": "dip", "pin_count": 8, "pitch": 2.54, "row_spacing": 7.62,
+    "body_length": 9.81, "body_width": 6.35, "lead_width_max": 0.53, "height_max": 5.08}
+}

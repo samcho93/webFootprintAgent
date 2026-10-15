@@ -1,0 +1,26 @@
+{
+  "part_number": "LM358DR",
+  "manufacturer": "Texas Instruments",
+  "description": "Dual operational amplifier, SOIC-8",
+  "datasheet_url": "https://www.ti.com/lit/ds/symlink/lm358.pdf",
+  "reference_prefix": "U",
+  "keywords": "opamp dual",
+  "pins": [
+    {"number": "1", "name": "OUT1", "electrical_type": "output", "group": "A"},
+    {"number": "2", "name": "IN1-", "electrical_type": "input", "group": "A"},
+    {"number": "3", "name": "IN1+", "electrical_type": "input", "group": "A"},
+    {"number": "4", "name": "GND", "electrical_type": "power_in", "group": "Power"},
+    {"number": "5", "name": "IN2+", "electrical_type": "input", "group": "B"},
+    {"number": "6", "name": "IN2-", "electrical_type": "input", "group": "B"},
+    {"number": "7", "name": "OUT2", "electrical_type": "output", "group": "B"},
+    {"number": "8", "name": "V+", "electrical_type": "power_in", "group": "Power"}
+  ],
+  "package": {
+    "name": "SOIC-8", "family": "gullwing_dual", "pin_count": 8, "pitch": 1.27,
+    "body_length": 4.9, "body_width": 3.9,
+    "lead_span_min": 5.8, "lead_span_max": 6.2,
+    "lead_length_min": 0.4, "lead_length_max": 1.27,
+    "lead_width_min": 0.31, "lead_width_max": 0.51, "height_max": 1.75
+  },
+  "evidence": ["예제 데이터 (TI LM358 D 패키지)"]
+}

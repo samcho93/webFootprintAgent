@@ -1,0 +1,15 @@
+{
+  "part_number": "RC0603-10K",
+  "description": "Chip resistor 0603",
+  "reference_prefix": "R",
+  "pins": [
+    {"number": "1", "name": "~", "electrical_type": "passive"},
+    {"number": "2", "name": "~", "electrical_type": "passive"}
+  ],
+  "package": {
+    "name": "R_0603_1608Metric", "family": "chip_2terminal", "pin_count": 2,
+    "body_length": 1.6, "body_width": 0.8,
+    "lead_span_min": 1.5, "lead_span_max": 1.7, "lead_length_min": 0.2, "lead_length_max": 0.5,
+    "lead_width_min": 0.7, "lead_width_max": 0.9, "height_max": 0.55
+  }
+}

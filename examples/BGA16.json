@@ -1,0 +1,14 @@
+{
+  "part_number": "EXAMPLE-BGA16",
+  "description": "4x4 BGA 0.8mm",
+  "pins": [
+    {"number":"A1","name":"VDD","electrical_type":"power_in"},{"number":"A2","name":"D0","electrical_type":"bidirectional"},
+    {"number":"A3","name":"D1","electrical_type":"bidirectional"},{"number":"A4","name":"VDD","electrical_type":"power_in"},
+    {"number":"B1","name":"D2","electrical_type":"bidirectional"},{"number":"B4","name":"D3","electrical_type":"bidirectional"},
+    {"number":"C1","name":"CLK","electrical_type":"input"},{"number":"C4","name":"CS","electrical_type":"input"},
+    {"number":"D1","name":"GND","electrical_type":"power_in"},{"number":"D2","name":"WP","electrical_type":"input"},
+    {"number":"D3","name":"HOLD","electrical_type":"input"},{"number":"D4","name":"GND","electrical_type":"power_in"}
+  ],
+  "package": {"name": "BGA-12", "family": "bga", "pin_count": 12, "pitch": 0.8, "rows": 4, "cols": 4,
+    "ball_diameter": 0.4, "missing_balls": ["B2","B3","C2","C3"], "body_length": 4.0, "body_width": 4.0, "height_max": 1.0}
+}

@@ -1,0 +1,6 @@
+work/
+library/
+.env
+__pycache__/
+.pytest_cache/
+.claude/

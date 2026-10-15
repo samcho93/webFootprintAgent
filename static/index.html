@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KiCad Footprint Agent</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 2v3M12 2v3M16 2v3M8 19v3M12 19v3M16 19v3M2 8h3M2 12h3M2 16h3M19 8h3M19 12h3M19 16h3" stroke="currentColor" stroke-width="1.6"/></svg>
+    <h1>KiCad Footprint Agent</h1>
+  </div>
+  <nav class="menu" id="menu">
+    <button data-view="work" class="on">작업</button>
+    <button data-view="help">사용법</button>
+    <button data-view="pipe">파이프라인 구조</button>
+  </nav>
+  <div id="status" class="chips"></div>
+  <button id="bridgeBtn" class="ghost small" type="button" title="로컬 브리지 주소 설정">⚙ <span id="bridgeUrlText"></span></button>
+</header>
+
+<div id="bridgeDown" class="banner" hidden>
+  <b>로컬 브리지에 연결되지 않았습니다.</b>
+  KiCad 와 Claude CLI 는 내 PC 에서 실행되므로, 이 화면을 쓰기 전에 PC 에서 브리지를 켜 주세요.
+  <code>git clone https://github.com/samcho93/webFootprintAgent</code> → 폴더에서 <code>start.bat</code> 실행 (또는 <code>python run.py</code>).
+  브라우저가 "로컬 네트워크의 기기에 접근" 권한을 물으면 허용하세요.
+  <button id="retryBtn" class="small" type="button">다시 연결</button>
+</div>
+
+<main id="view-work">
+  <aside>
+    <form id="form" class="card">
+      <h2>새 부품</h2>
+      <label>부품 번호 <input name="part_number" placeholder="예: LM358DR, STM32G031K8T6"></label>
+      <label>제조사 <span class="opt">선택</span><input name="manufacturer" placeholder="예: Texas Instruments"></label>
+      <label>데이터시트 링크 <span class="opt">선택</span><input name="datasheet_url" placeholder="https://…/datasheet.pdf"></label>
+      <div id="drop" class="drop">
+        <input type="file" name="file" id="file" accept="application/pdf" hidden>
+        <span id="dropText">PDF 를 끌어놓거나 <u>클릭해서 선택</u></span>
+      </div>
+      <label>패키지 지정 <span class="opt">선택</span><input name="package_hint" placeholder="예: SOIC-8 (D), QFN-32 5x5"></label>
+      <label>라이브러리 이름 <input name="lib_name" value="AutoParts"></label>
+      <div class="row">
+        <label class="check"><input type="checkbox" name="ai_review" checked> AI 검토</label>
+        <label class="check"><input type="checkbox" name="auto_save" checked> 통과 시 자동 저장</label>
+      </div>
+      <button type="submit" class="primary">생성 시작</button>
+      <p class="hint">링크·파일이 없으면 에이전트가 웹에서 공식 데이터시트를 찾습니다.</p>
+    </form>
+
+    <div class="card">
+      <h2>작업 기록</h2>
+      <ul id="jobs" class="list"></ul>
+    </div>
+    <div class="card">
+      <h2>라이브러리 <button id="refreshLib" class="ghost small" type="button">새로고침</button></h2>
+      <ul id="lib" class="list"></ul>
+      <p id="libDir" class="hint"></p>
+    </div>
+  </aside>
+
+  <section id="main">
+    <div id="empty" class="card empty">
+      <h2>시작하기</h2>
+      <ol>
+        <li>부품 번호를 입력하거나 데이터시트 PDF/링크를 지정합니다.</li>
+        <li>에이전트가 데이터시트에서 핀 표와 패키지 도면을 읽어 사양을 추출합니다.</li>
+        <li>회로 기호(.kicad_sym)와 풋프린트(.kicad_mod)를 생성합니다.</li>
+        <li>규칙 검증 · KiCad CLI 파싱 · AI 교차 검토를 거쳐, 통과하면 라이브러리에 저장합니다.</li>
+      </ol>
+    </div>
+
+    <div id="jobView" hidden>
+      <div class="card">
+        <div class="jobhead">
+          <div><h2 id="jobTitle">—</h2><span id="jobState" class="badge"></span></div>
+          <div class="actions">
+            <a id="dlSym" class="ghost btn" href="#">.kicad_sym</a>
+            <a id="dlFp" class="ghost btn" href="#">.kicad_mod</a>
+            <button id="saveBtn" class="primary" type="button">라이브러리에 저장</button>
+          </div>
+        </div>
+        <ol id="stages" class="stages">
+          <li data-s="acquire">자료 확보</li><li data-s="extract">추출</li><li data-s="generate">생성</li>
+          <li data-s="verify">검증</li><li data-s="review">AI 검토</li><li data-s="save">저장</li>
+        </ol>
+        <details id="logBox" open><summary>진행 로그</summary><div id="log" class="log"></div></details>
+      </div>
+
+      <div id="resultBox" class="card" hidden>
+        <nav class="tabs">
+          <button data-tab="preview" class="on">미리보기</button>
+          <button data-tab="pins">핀</button>
+          <button data-tab="pads">패드</button>
+          <button data-tab="checks">검증</button>
+          <button data-tab="review">AI 검토</button>
+          <button data-tab="edit">사양 편집</button>
+        </nav>
+        <div data-pane="preview" class="pane on">
+          <div class="previews">
+            <figure><figcaption>회로 기호 <span id="symName"></span></figcaption><div id="symSvg" class="svgbox"></div></figure>
+            <figure><figcaption>풋프린트 <span id="fpName"></span></figcaption><div id="fpSvg" class="svgbox"></div></figure>
+          </div>
+          <label class="check"><input type="checkbox" id="kicadView"> KiCad CLI 렌더링으로 보기</label>
+          <div id="landNotes" class="hint"></div>
+        </div>
+        <div data-pane="pins" class="pane"><div id="pinsTable" class="tablewrap"></div></div>
+        <div data-pane="pads" class="pane"><div id="pkgInfo"></div><div id="padsTable" class="tablewrap"></div></div>
+        <div data-pane="checks" class="pane"><ul id="checks" class="checks"></ul><pre id="kicadLog" class="hint"></pre></div>
+        <div data-pane="review" class="pane"><div id="review"></div></div>
+        <div data-pane="edit" class="pane">
+          <p class="hint">추출된 사양(JSON)을 직접 고친 뒤 즉시 재생성하거나 AI 검토를 다시 돌릴 수 있습니다. 단위: mm.</p>
+          <textarea id="specEdit" spellcheck="false"></textarea>
+          <div class="row">
+            <button id="previewBtn" type="button" class="ghost">즉시 재생성 (AI 없이)</button>
+            <button id="rerunBtn" type="button" class="primary">재생성 + AI 검토</button>
+            <span id="editMsg" class="hint"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+<main id="view-help" class="doc" hidden>
+  <div class="card">
+    <h2>사용법</h2>
+    <h3>1. 준비</h3>
+    <ul>
+      <li><b>Claude 연결 (둘 중 하나)</b>
+        <ul>
+          <li><b>Claude Code CLI</b> — API 키 없이 사용합니다. <code>npm i -g @anthropic-ai/claude-code</code> 설치 후 터미널에서 <code>claude</code> 를 한 번 실행해 로그인하면, 서버가 <code>claude -p</code> 를 헤드리스로 실행해 데이터시트 읽기(Read)·웹 검색(WebSearch/WebFetch)을 합니다. 상단 칩이 <span class="chip ok">Claude CLI 연결</span> 로 표시됩니다.</li>
+          <li><b>Anthropic API 키</b> — 프로젝트 폴더의 <code>.env</code> 에 <code>ANTHROPIC_API_KEY=…</code> 를 넣으면 API 로 직접 호출합니다 (키가 있으면 API 우선). <code>FP_AGENT_BACKEND=cli</code> 로 CLI 를 강제할 수 있습니다.</li>
+        </ul></li>
+      <li><b>KiCad 9</b> — 설치되어 있으면 <code>kicad-cli</code> 를 자동으로 찾아 생성 파일이 실제로 KiCad 에서 열리는지 검증합니다. 경로가 다르면 <code>KICAD_CLI</code> 환경변수로 지정합니다.</li>
+    </ul>
+    <h3>2. 부품 만들기 — 세 가지 입력 방법</h3>
+    <div class="modes">
+      <div><b>① PDF 업로드</b><p>데이터시트 PDF 를 끌어놓습니다. 가장 확실한 방법입니다.</p></div>
+      <div><b>② 데이터시트 링크</b><p>PDF 주소(또는 PDF 링크가 있는 페이지)를 붙여넣으면 서버가 내려받습니다.</p></div>
+      <div><b>③ 부품 번호만</b><p>링크·파일이 없으면 에이전트가 웹 검색으로 제조사 공식 데이터시트를 찾아 내려받습니다.</p></div>
+    </div>
+    <ul>
+      <li><b>패키지 지정</b> — 한 데이터시트에 여러 패키지(SOIC/TSSOP/QFN 등)가 있으면 원하는 것을 적어 주세요. 비우면 부품 번호의 주문 코드로 판단합니다.</li>
+      <li><b>AI 검토</b> — 끄면 추출 결과로 바로 생성·규칙 검증만 합니다 (빠르지만 교차 검토 없음).</li>
+      <li><b>통과 시 자동 저장</b> — 규칙 검증 · KiCad 파싱 · AI 검토를 모두 통과하면 라이브러리에 바로 저장합니다.</li>
+    </ul>
+    <h3>3. 결과 확인</h3>
+    <table class="plain">
+      <tr><th>탭</th><th>내용</th></tr>
+      <tr><td>미리보기</td><td>회로 기호와 풋프린트(패드 번호·1번 핀 표시·코트야드 포함). 체크박스로 KiCad CLI 렌더링과 비교할 수 있습니다.</td></tr>
+      <tr><td>핀</td><td>핀 번호 · 이름 · 전기적 타입 · 그룹</td></tr>
+      <tr><td>패드</td><td>패키지 치수 요약과 패드 좌표표 (원점 = 패키지 중심, Y 아래쪽 +, mm)</td></tr>
+      <tr><td>검증</td><td>규칙 검증 항목별 결과와 kicad-cli 로그</td></tr>
+      <tr><td>AI 검토</td><td>회차별 검토 판정, 지적 사항, 데이터시트 근거 페이지</td></tr>
+      <tr><td>사양 편집</td><td>추출된 사양 JSON 을 고쳐 <b>즉시 재생성</b>(AI 없이) 하거나 <b>재생성 + AI 검토</b> 를 다시 돌립니다.</td></tr>
+    </table>
+    <h3>4. 저장과 KiCad 에서 사용</h3>
+    <ul>
+      <li>상태가 <span class="badge passed">검증 통과</span> 이면 저장 버튼으로, <span class="badge needs_review">검토 필요</span> 이면 내용을 확인한 뒤 강제 저장합니다.</li>
+      <li>저장 위치: <code>library/&lt;라이브러리&gt;.kicad_sym</code>, <code>library/&lt;라이브러리&gt;.pretty/*.kicad_mod</code>, 근거 기록 <code>library/specs/*.json</code>, 데이터시트 사본 <code>library/datasheets/</code>.</li>
+      <li>KiCad → <i>환경설정 → 심볼/풋프린트 라이브러리 관리</i> 에서 위 파일을 추가하거나, 함께 생성되는 <code>sym-lib-table</code> / <code>fp-lib-table</code> 항목을 복사해 사용합니다. 심볼의 Footprint 필드는 <code>&lt;라이브러리&gt;:&lt;풋프린트&gt;</code> 로 미리 연결되어 있습니다.</li>
+    </ul>
+    <h3>5. Claude 없이 쓰기</h3>
+    <p><code>examples/</code> 폴더의 JSON 처럼 사양을 직접 작성해 사양 편집 탭에 붙여넣고 <b>즉시 재생성</b> 하면 생성 · 규칙 검증 · KiCad 검증까지 동작합니다.</p>
+    <h3>주의</h3>
+    <p class="hint">자동 생성 결과는 반드시 데이터시트와 대조해 확인한 뒤 실제 보드에 사용하세요. 특히 1번 핀 위치, 패드 번호 방향, 노출 패드(EP) 번호, 다이오드 극성은 검증 통과 후에도 눈으로 확인하는 것을 권장합니다.</p>
+  </div>
+</main>
+
+<main id="view-pipe" class="doc" hidden>
+  <div class="card">
+    <h2>에이전트 파이프라인 구조</h2>
+    <p class="hint">AI 단계(보라)는 Claude 가, 결정론적 단계(초록)는 코드가 수행합니다. 모든 단계는 하나의 <b>PartSpec</b>(부품 사양 JSON)을 주고받습니다.</p>
+    <div class="flow">
+      <div class="node io"><b>입력</b><span>PDF · 링크 · 부품 번호</span></div>
+      <div class="arrow">→</div>
+      <div class="node ai"><b>① 자료 확보</b><span>업로드/다운로드<br>없으면 웹 검색 에이전트</span></div>
+      <div class="arrow">→</div>
+      <div class="node code"><b>② 페이지 선별</b><span>핀 표·패키지 도면·<br>권장 랜드 패턴 페이지</span></div>
+      <div class="arrow">→</div>
+      <div class="node ai"><b>③ 추출</b><span>핀 · 패키지 치수 →<br>PartSpec</span></div>
+      <div class="arrow">→</div>
+      <div class="node code"><b>④ 생성</b><span>.kicad_sym<br>.kicad_mod (IPC-7351)</span></div>
+      <div class="arrow">→</div>
+      <div class="node code"><b>⑤ 검증</b><span>규칙 검사 +<br>kicad-cli 파싱</span></div>
+      <div class="arrow">→</div>
+      <div class="node ai"><b>⑥ AI 검토</b><span>데이터시트와<br>교차 대조</span></div>
+      <div class="arrow">→</div>
+      <div class="node io"><b>⑦ 저장</b><span>라이브러리 +<br>근거 기록</span></div>
+    </div>
+    <p class="loopnote">↺ ⑥ 에서 오류가 발견되면 검토 에이전트의 수정 사양으로 ④ → ⑤ → ⑥ 을 다시 수행합니다 (기본 최대 2회). 끝까지 통과하지 못하면 <span class="badge needs_review">검토 필요</span> 상태로 사람에게 넘깁니다.</p>
+
+    <table class="plain">
+      <tr><th>단계</th><th>수행</th><th>하는 일</th><th>산출물</th></tr>
+      <tr><td>① 자료 확보</td><td>코드 / Claude (web_search·web_fetch)</td><td>업로드 PDF 사용, 링크 다운로드(HTML 이면 PDF 링크 추적). 둘 다 없으면 제조사 공식 사이트 우선으로 후보 URL 을 찾고 차례로 내려받기 시도</td><td>datasheet.pdf</td></tr>
+      <tr><td>② 페이지 선별</td><td>코드 (PyMuPDF)</td><td>키워드 점수(pin description, package outline, land pattern…)로 최대 24쪽 선택, 표지·마지막 도면 페이지 보강</td><td>부분 PDF + 원본 페이지 번호</td></tr>
+      <tr><td>③ 추출</td><td>Claude (구조화 출력)</td><td>주문 코드에 맞는 패키지 선택, 핀 번호·이름·전기적 타입, 치수 min/max, 권장 랜드 패턴(있으면 패드 좌표), 근거 페이지 기록</td><td>PartSpec JSON</td></tr>
+      <tr><td>④ 생성</td><td>코드</td><td>심볼: 전원 위/GND 아래/입력 왼쪽/출력 오른쪽 자동 배치, 100 mil 격자. 풋프린트: 패키지 유형별 IPC-7351B Nominal 계산, 코너 간섭·EP 간격 자동 보정, EP 페이스트 분할, 실크/팹/코트야드</td><td>.kicad_sym, .kicad_mod</td></tr>
+      <tr><td>⑤ 검증</td><td>코드 + kicad-cli</td><td>핀 번호 중복, 심볼↔패드 1:1 대응, 패드 겹침/간격, 피치 일치, 코트야드 포함, 애뉼러 링, 치수 상식 검사, KiCad 파싱·렌더링</td><td>검증 리포트</td></tr>
+      <tr><td>⑥ AI 검토</td><td>Claude (독립 검토자)</td><td>“틀렸다고 가정하고” 데이터시트와 항목별 대조. 오류가 있으면 수정된 전체 사양 제시</td><td>판정 · 지적 사항 · 수정 사양</td></tr>
+      <tr><td>⑦ 저장</td><td>코드</td><td>심볼 라이브러리에 병합(같은 이름 교체), 풋프린트 파일, 사양·검증·검토 기록 JSON, 데이터시트 사본, lib-table 생성</td><td>library/</td></tr>
+    </table>
+
+    <h3>구성 파일</h3>
+    <table class="plain">
+      <tr><td><code>app/pipeline.py</code></td><td>작업 관리와 단계 오케스트레이션 (검토 반복 루프 포함)</td></tr>
+      <tr><td><code>app/agents/finder.py</code></td><td>데이터시트 웹 검색 에이전트</td></tr>
+      <tr><td><code>app/agents/extractor.py</code></td><td>추출 · 검토 에이전트 프롬프트</td></tr>
+      <tr><td><code>app/agents/llm.py</code></td><td>Claude 호출 — API(스트리밍, JSON 스키마 출력, 거절 시 대체 모델) 또는 CLI 백엔드 선택</td></tr>
+      <tr><td><code>app/agents/claude_cli.py</code></td><td>Claude Code CLI 헤드리스 실행 (<code>claude -p --json-schema</code>, API 키 불필요)</td></tr>
+      <tr><td><code>app/datasheet.py</code></td><td>다운로드, 관련 페이지 선별</td></tr>
+      <tr><td><code>app/kicad/symbol.py</code> · <code>footprint.py</code></td><td>KiCad 9 형식 생성기</td></tr>
+      <tr><td><code>app/kicad/verify.py</code> · <code>preview.py</code> · <code>library.py</code></td><td>검증 · 미리보기 · 저장</td></tr>
+    </table>
+  </div>
+</main>
+<script src="app.js"></script>
+</body>
+</html>
