@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import os
 import re
+import threading
+import time
 import uuid
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
@@ -19,10 +21,11 @@ from .env import load_env
 
 load_env()  # .agents.llm 이 모델/키를 읽기 전에 .env 반영
 
-from .agents.claude_cli import find_claude  # noqa: E402
+from . import __version__  # noqa: E402
+from .agents.claude_cli import _INFO_CACHE, cli_info, find_claude  # noqa: E402
 from .agents.llm import MODEL, backend  # noqa: E402
-from .kicad.library import list_library
-from .kicad.verify import find_kicad_cli
+from .kicad.library import list_library  # noqa: E402
+from .kicad.verify import _KICAD_CACHE, kicad_info  # noqa: E402
 from .models import PartSpec
 from .pipeline import (BATCHES, JOBS, LIB_DIR, ROOT, WORK_DIR, JobInput, do_save, evaluate,  # noqa: E402
                        list_dirs, scan_folder, start_batch, start_job, stop_batch)
@@ -64,11 +67,42 @@ def index():
     return FileResponse(os.path.join(STATIC, "index.html"))
 
 
+def _warm_checks():
+    """KiCad · Claude CLI 점검은 수 초~수십 초 걸리므로 시작할 때 백그라운드로 미리 해 둔다."""
+    kicad_info(refresh=True)
+    if backend() == "cli":
+        cli_info(refresh=True)
+
+
+threading.Thread(target=_warm_checks, daemon=True).start()
+
+
+def _cached(cache: dict, fn):
+    """캐시가 있으면 바로, 없으면 백그라운드 점검을 걸고 '확인 중' 을 돌려준다 (상태 요청이 막히지 않게)."""
+    if cache["info"]:
+        if time.time() - cache["at"] > 300:
+            threading.Thread(target=fn, kwargs={"refresh": True}, daemon=True).start()
+        return cache["info"]
+    return None
+
+
 @app.get("/api/status")
-def status():
+def status(refresh: bool = False):
     has_key = bool(os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN"))
-    return {"model": MODEL, "api_key": has_key, "backend": backend(), "claude_cli": bool(find_claude()),
-            "kicad_cli": find_kicad_cli(), "library_dir": LIB_DIR}
+    if refresh:  # 사용자가 「다시 확인」을 누른 경우
+        _KICAD_CACHE["info"] = None
+        _INFO_CACHE["info"] = None
+        threading.Thread(target=_warm_checks, daemon=True).start()
+    k = _cached(_KICAD_CACHE, kicad_info)
+    be = backend()
+    c = _cached(_INFO_CACHE, cli_info) if be == "cli" else None
+    kicad = ({"checking": True} if k is None else
+             {k2: k[k2] for k2 in ("cli", "version", "major", "ok", "message")})
+    claude = (None if be != "cli" else {"checking": True} if c is None else
+              {k2: c[k2] for k2 in ("version", "json_schema", "logged_in", "ok", "message")})
+    return {"version": __version__, "model": MODEL, "api_key": has_key, "backend": be,
+            "claude_cli": bool(find_claude()), "claude": claude,
+            "kicad_cli": k["cli"] if k and k["ok"] else None, "kicad": kicad, "library_dir": LIB_DIR}
 
 
 @app.post("/api/jobs")

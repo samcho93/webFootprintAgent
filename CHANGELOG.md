@@ -5,7 +5,8 @@ KiCad Footprint Agent — 데이터시트에서 KiCad 회로 기호 · 풋프린
 
 | 버전 | 날짜 | 요약 | 커밋 |
 |---|---|---|---|
-| 0.4.1 | 2026-10-15 | 사용법 메뉴에 개발 · 수정 이력 표시 | — |
+| 0.4.2 | 2026-10-15 | 다른 PC 에서 실행할 때의 환경 점검 | — |
+| 0.4.1 | 2026-10-15 | 사용법 메뉴에 개발 · 수정 이력 표시 | d0375a3 |
 | 0.4.0 | 2026-10-15 | 폴더 일괄 생성 | 96bb45d |
 | 0.3.1 | 2026-10-15 | `?job=<id>` 로 결과 바로 열기 | 2be6411 |
 | 0.3.0 | 2026-10-15 | irodmas.com 배포 (정적 화면 + 로컬 브리지) | c72b6de |
@@ -13,6 +14,24 @@ KiCad Footprint Agent — 데이터시트에서 KiCad 회로 기호 · 풋프린
 | 0.1.0 | 2026-10-15 | 초기 개발 | c72b6de |
 
 ---
+
+## 0.4.2 — 다른 PC 에서 실행할 때의 환경 점검
+
+**요청**: PCB Agent 와 Footprint Agent 를 다른 PC 에서 실행할 때 문제되는 점을 점검하고 보완.
+
+### 추가
+- **KiCad 탐색 · 버전 확인**: `C:~H:\Program Files\KiCad\<버전>`, 사용자별 설치(`%LOCALAPPDATA%\Programs\KiCad`), PATH 까지 찾고 버전을 숫자로 비교해 가장 높은 것을 쓴다 (PCB Agent 와 같은 위치). `kicad-cli version` 으로 버전을 읽어 **KiCad 9 미만이면 쓰지 않음**.
+- KiCad 가 없거나 오래되었으면 KiCad 검증을 **생략**하고 검증 탭에 `kicad.skip` 경고로 표시 (이전에는 kicad-cli 를 못 찾아도 아무 표시 없이 통과).
+- **Claude CLI 점검**: 설치 · `--json-schema` 지원(`--help` 로 확인) · 로그인(`claude auth status`). 문제가 있으면 작업 시작 전에 한국어 안내.
+- **브리지 버전**: `/api/status` 에 `version`, 화면의 `PAGE_VERSION` 과 비교해 브리지가 오래되면 `git pull` 안내 배너.
+- 화면 위 환경 경고 배너(KiCad · Claude · 브리지 버전)와 「다시 확인」, 상단 칩에 KiCad 버전 · 브리지 버전 표시.
+- 점검은 시작할 때 백그라운드로 미리 하고 5분 캐시 — `/api/status` 가 막히지 않는다 (`kicad-cli version` 첫 실행 약 14초).
+- `run.py`: Python 3.10 미만 · 패키지 누락이면 고치는 방법(설치할 Python 경로 포함)을 출력. `start.bat`: `python` 이 3.10 미만이면 `py -3` 사용.
+- README 「다른 PC 에서 실행」 절, 테스트 `tests/test_env_checks.py` (버전 일치, KiCad 8 이면 검증 생략).
+
+### 수정
+- `start.bat` 을 ASCII 로만 작성 — cmd 가 UTF-8 한글 줄 뒤의 줄을 잘못 읽어 Python 을 찾지 못하던 문제.
+- 0.2.0 때의 설명 정정: `~/.local/bin` 의 2.1.63 도 `--json-schema` 를 지원한다. 그래서 버전 번호 대신 `--help` 로 지원 여부를 확인한다.
 
 ## 0.4.1 — 사용법 메뉴에 개발 · 수정 이력 표시
 

@@ -28,6 +28,7 @@
   브라우저가 "로컬 네트워크의 기기에 접근" 권한을 물으면 허용하세요.
   <button id="retryBtn" class="small" type="button">다시 연결</button>
 </div>
+<div id="envWarn" class="banner" hidden></div>
 
 <main id="view-work">
   <aside>
@@ -225,8 +226,27 @@
     <h2>개발 · 수정 이력 <button type="button" class="ghost small" data-scroll="view-help">맨 위로 ↑</button></h2>
     <!--CHANGELOG:START-->
 <p>KiCad Footprint Agent — 데이터시트에서 KiCad 회로 기호 · 풋프린트를 자동으로 만드는 웹 에이전트. 날짜는 KST. 커밋 해시는 GitHub <a href="https://github.com/samcho93/webFootprintAgent" target="_blank" rel="noopener">samcho93/webFootprintAgent</a> 기준이며, 첫 커밋(c72b6de) 전의 개발 과정은 단계별로 정리했다.</p>
-<table class="plain"><tr><th>버전</th><th>날짜</th><th>요약</th><th>커밋</th></tr><tr><td>0.4.1</td><td>2026-10-15</td><td>사용법 메뉴에 개발 · 수정 이력 표시</td><td>—</td></tr><tr><td>0.4.0</td><td>2026-10-15</td><td>폴더 일괄 생성</td><td>96bb45d</td></tr><tr><td>0.3.1</td><td>2026-10-15</td><td><code>?job=&lt;id&gt;</code> 로 결과 바로 열기</td><td>2be6411</td></tr><tr><td>0.3.0</td><td>2026-10-15</td><td>irodmas.com 배포 (정적 화면 + 로컬 브리지)</td><td>c72b6de</td></tr><tr><td>0.2.0</td><td>2026-10-15</td><td>API 키 없이 Claude Code CLI 로 동작</td><td>c72b6de</td></tr><tr><td>0.1.0</td><td>2026-10-15</td><td>초기 개발</td><td>c72b6de</td></tr></table>
-<details class="ver" open><summary>0.4.1 — 사용법 메뉴에 개발 · 수정 이력 표시</summary>
+<table class="plain"><tr><th>버전</th><th>날짜</th><th>요약</th><th>커밋</th></tr><tr><td>0.4.2</td><td>2026-10-15</td><td>다른 PC 에서 실행할 때의 환경 점검</td><td>—</td></tr><tr><td>0.4.1</td><td>2026-10-15</td><td>사용법 메뉴에 개발 · 수정 이력 표시</td><td>d0375a3</td></tr><tr><td>0.4.0</td><td>2026-10-15</td><td>폴더 일괄 생성</td><td>96bb45d</td></tr><tr><td>0.3.1</td><td>2026-10-15</td><td><code>?job=&lt;id&gt;</code> 로 결과 바로 열기</td><td>2be6411</td></tr><tr><td>0.3.0</td><td>2026-10-15</td><td>irodmas.com 배포 (정적 화면 + 로컬 브리지)</td><td>c72b6de</td></tr><tr><td>0.2.0</td><td>2026-10-15</td><td>API 키 없이 Claude Code CLI 로 동작</td><td>c72b6de</td></tr><tr><td>0.1.0</td><td>2026-10-15</td><td>초기 개발</td><td>c72b6de</td></tr></table>
+<details class="ver" open><summary>0.4.2 — 다른 PC 에서 실행할 때의 환경 점검</summary>
+<p><b>요청</b>: PCB Agent 와 Footprint Agent 를 다른 PC 에서 실행할 때 문제되는 점을 점검하고 보완.</p>
+<h4>추가</h4>
+<ul>
+<li><b>KiCad 탐색 · 버전 확인</b>: <code>C:~H:\Program Files\KiCad\&lt;버전&gt;</code>, 사용자별 설치(<code>%LOCALAPPDATA%\Programs\KiCad</code>), PATH 까지 찾고 버전을 숫자로 비교해 가장 높은 것을 쓴다 (PCB Agent 와 같은 위치). <code>kicad-cli version</code> 으로 버전을 읽어 <b>KiCad 9 미만이면 쓰지 않음</b>.</li>
+<li>KiCad 가 없거나 오래되었으면 KiCad 검증을 <b>생략</b>하고 검증 탭에 <code>kicad.skip</code> 경고로 표시 (이전에는 kicad-cli 를 못 찾아도 아무 표시 없이 통과).</li>
+<li><b>Claude CLI 점검</b>: 설치 · <code>--json-schema</code> 지원(<code>--help</code> 로 확인) · 로그인(<code>claude auth status</code>). 문제가 있으면 작업 시작 전에 한국어 안내.</li>
+<li><b>브리지 버전</b>: <code>/api/status</code> 에 <code>version</code>, 화면의 <code>PAGE_VERSION</code> 과 비교해 브리지가 오래되면 <code>git pull</code> 안내 배너.</li>
+<li>화면 위 환경 경고 배너(KiCad · Claude · 브리지 버전)와 「다시 확인」, 상단 칩에 KiCad 버전 · 브리지 버전 표시.</li>
+<li>점검은 시작할 때 백그라운드로 미리 하고 5분 캐시 — <code>/api/status</code> 가 막히지 않는다 (<code>kicad-cli version</code> 첫 실행 약 14초).</li>
+<li><code>run.py</code>: Python 3.10 미만 · 패키지 누락이면 고치는 방법(설치할 Python 경로 포함)을 출력. <code>start.bat</code>: <code>python</code> 이 3.10 미만이면 <code>py -3</code> 사용.</li>
+<li>README 「다른 PC 에서 실행」 절, 테스트 <code>tests/test_env_checks.py</code> (버전 일치, KiCad 8 이면 검증 생략).</li>
+</ul>
+<h4>수정</h4>
+<ul>
+<li><code>start.bat</code> 을 ASCII 로만 작성 — cmd 가 UTF-8 한글 줄 뒤의 줄을 잘못 읽어 Python 을 찾지 못하던 문제.</li>
+<li>0.2.0 때의 설명 정정: <code>~/.local/bin</code> 의 2.1.63 도 <code>--json-schema</code> 를 지원한다. 그래서 버전 번호 대신 <code>--help</code> 로 지원 여부를 확인한다.</li>
+</ul>
+</details>
+<details class="ver"><summary>0.4.1 — 사용법 메뉴에 개발 · 수정 이력 표시</summary>
 <p><b>요청</b>: 개발 · 수정 이력을 사용법 메뉴에 추가.</p>
 <ul>
 <li>「사용법」 페이지 아래에 <b>개발 · 수정 이력</b> 카드 추가 — 버전별 접기(최신 버전만 펼침), 머리의 「개발 · 수정 이력 ↓」 · 「맨 위로 ↑」 이동 버튼.</li>

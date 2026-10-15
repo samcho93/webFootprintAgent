@@ -132,12 +132,13 @@ def evaluate(spec: PartSpec, lib_name: str, job: Job | None = None) -> tuple[obj
             "info" if ok else "error")
     else:
         say(render["log"], "warning")
+        checks.append({"level": "warning", "check": "kicad.skip", "message": render["log"]})
     return gen, {
         "spec": spec.model_dump(),
         "symbol_name": gen.symbol_name,
         "footprint_name": gen.footprint.name,
         "checks": checks,
-        "kicad": {k: render[k] for k in ("cli", "symbol_ok", "footprint_ok", "log")},
+        "kicad": {k: render[k] for k in ("cli", "symbol_ok", "footprint_ok", "log", "skipped")},
         "symbol_svg": symbol_svg(spec),
         "footprint_svg": footprint_svg(gen.footprint),
         "kicad_symbol_svg": render["symbol_svg"],

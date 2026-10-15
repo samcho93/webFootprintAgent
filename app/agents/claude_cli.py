@@ -14,6 +14,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
 from typing import Callable
 
 TIMEOUT_S = int(os.environ.get("FP_AGENT_CLI_TIMEOUT", "1500"))
@@ -46,6 +47,43 @@ def find_claude() -> list[str] | None:
     return None
 
 
+_INFO_CACHE: dict = {"at": 0.0, "info": None}
+
+
+def cli_info(refresh: bool = False) -> dict:
+    """{path, version, json_schema, logged_in, ok, message} — 다른 PC 에서 작업 전에 문제를 알리기 위한 점검 (5분 캐시)."""
+    if not refresh and _INFO_CACHE["info"] and time.time() - _INFO_CACHE["at"] < 300:
+        return _INFO_CACHE["info"]
+    cmd = find_claude()
+    info = {"path": cmd[-1] if cmd else None, "version": "", "json_schema": False, "logged_in": None, "ok": False,
+            "message": "claude CLI 를 찾지 못했습니다 — `npm i -g @anthropic-ai/claude-code` 설치 후 터미널에서 `claude` 로 로그인하세요"}
+    if cmd:
+        def run(args, timeout=30):
+            return subprocess.run(cmd + args, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                  timeout=timeout, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        try:
+            info["version"] = run(["--version"]).stdout.strip()
+            info["json_schema"] = "--json-schema" in run(["--help"]).stdout
+        except (OSError, subprocess.TimeoutExpired) as e:
+            info["message"] = f"claude CLI 실행 실패: {e}"
+        else:
+            try:  # 오래된 CLI 에는 auth status 가 없을 수 있음 → 알 수 없음(None)
+                r = run(["auth", "status", "--json"])
+                if r.returncode == 0 and r.stdout.strip().startswith("{"):
+                    info["logged_in"] = bool(json.loads(r.stdout).get("loggedIn"))
+            except (OSError, subprocess.TimeoutExpired, json.JSONDecodeError):
+                pass
+            if not info["json_schema"]:
+                info["message"] = (f"claude CLI {info['version']} 가 구조화 출력(--json-schema)을 지원하지 않습니다 — "
+                                   "`npm i -g @anthropic-ai/claude-code` 로 업데이트하세요 (PATH 에서 먼저 찾는 claude 가 쓰입니다)")
+            elif info["logged_in"] is False:
+                info["message"] = "claude CLI 가 로그인되어 있지 않습니다 — 터미널에서 `claude` 를 실행해 로그인하세요"
+            else:
+                info.update(ok=True, message=f"Claude CLI {info['version'].split(' ')[0]}")
+    _INFO_CACHE.update(at=time.time(), info=info)
+    return info
+
+
 def cli_version() -> str:
     cmd = find_claude()
     if not cmd:
@@ -74,9 +112,10 @@ class CLIError(Exception):
 
 def run_structured(content: list[dict], schema: dict, *, system: str, model: str, effort: str,
                    web: bool, log: Callable[[str], None]) -> dict:
+    info = cli_info()
+    if not info["ok"]:  # 설치 · 버전 · 로그인 문제는 작업을 시작하기 전에 알린다
+        raise CLIError(info["message"])
     cmd = find_claude()
-    if not cmd:
-        raise CLIError("claude CLI 를 찾지 못했습니다 — `npm i -g @anthropic-ai/claude-code` 설치 후 `claude` 로 로그인하세요")
     work = tempfile.mkdtemp(prefix="fpagent_")
     try:
         parts, n_doc = [], 0

@@ -3,9 +3,12 @@ from __future__ import annotations
 
 import glob
 import os
+import re
 import shutil
 import subprocess
+import sys
 import tempfile
+import time
 from collections import Counter
 from dataclasses import asdict, dataclass
 
@@ -21,16 +24,88 @@ class Check:
     message: str
 
 
-def find_kicad_cli() -> str | None:
+MIN_KICAD = 9  # 생성 파일 형식 (심볼 20241209 / 풋프린트 20241229) 은 KiCad 9 부터 열린다
+
+
+def _ver_key(v: str):
+    return tuple(int(x) for x in re.findall(r"\d+", v)[:3]) or (0,)
+
+
+def _kicad_candidates() -> list[str]:
+    """kicad-cli 후보 (높은 버전 우선). PCB Agent(server/kicad.js) 와 같은 위치를 찾는다."""
+    out: list[str] = []
     env = os.environ.get("KICAD_CLI")
-    if env and os.path.exists(env):
-        return env
-    found = shutil.which("kicad-cli")
-    if found:
-        return found
-    cands = sorted(glob.glob(r"C:\Program Files\KiCad\*\bin\kicad-cli.exe"), reverse=True)
-    cands += ["/usr/bin/kicad-cli", "/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli"]
-    return next((c for c in cands if os.path.exists(c)), None)
+    if env:
+        out.append(env)
+
+    def versions(root: str) -> list[str]:
+        try:
+            vs = [v for v in os.listdir(root) if re.fullmatch(r"\d+(\.\d+)?", v)]
+        except OSError:
+            return []
+        return [os.path.join(root, v, "bin", "kicad-cli.exe") for v in sorted(vs, key=_ver_key, reverse=True)]
+
+    if os.name == "nt":
+        roots = {os.environ.get(k) for k in ("ProgramFiles", "ProgramFiles(x86)", "ProgramW6432")} - {None}
+        roots |= {f"{d}:\\Program Files" for d in "CDEFGH"}
+        found = []
+        for r in roots:
+            found += versions(os.path.join(r, "KiCad"))
+        if os.environ.get("LOCALAPPDATA"):  # 사용자별 설치
+            found += versions(os.path.join(os.environ["LOCALAPPDATA"], "Programs", "KiCad"))
+        out += sorted(found, key=lambda p: _ver_key(os.path.basename(os.path.dirname(os.path.dirname(p)))), reverse=True)
+    elif sys.platform == "darwin":
+        out.append("/Applications/KiCad/KiCad.app/Contents/MacOS/kicad-cli")
+    else:
+        out += ["/usr/bin/kicad-cli", "/usr/local/bin/kicad-cli"]
+    w = shutil.which("kicad-cli")
+    if w:
+        out.append(w)
+    seen, uniq = set(), []
+    for c in out:
+        k = os.path.normcase(os.path.abspath(c))
+        if k not in seen:
+            seen.add(k)
+            uniq.append(c)
+    return uniq
+
+
+_KICAD_CACHE: dict = {"at": 0.0, "info": None}
+
+
+def kicad_info(refresh: bool = False) -> dict:
+    """{cli, version, major, ok, message, searched} — `kicad-cli version` 은 수 초 걸리므로 5분 캐시."""
+    if not refresh and _KICAD_CACHE["info"] and time.time() - _KICAD_CACHE["at"] < 300:
+        return _KICAD_CACHE["info"]
+    cands = _kicad_candidates()
+    info = {"cli": None, "version": "", "major": None, "ok": False, "searched": cands,
+            "message": "kicad-cli 를 찾지 못했습니다 — KiCad 9 를 설치하거나 KICAD_CLI 로 경로를 지정하세요. KiCad 검증은 생략됩니다."}
+    for c in cands:
+        if not os.path.exists(c):
+            continue
+        try:
+            out = subprocess.run([c, "version"], capture_output=True, text=True, encoding="utf-8",
+                                 errors="replace", timeout=60).stdout.strip()
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        m = re.search(r"(\d+)\.(\d+)(\.\d+)?", out)
+        ver = m.group(0) if m else ""
+        major = int(m.group(1)) if m else None
+        info.update(cli=c, version=ver, major=major)
+        if major is not None and major < MIN_KICAD:
+            info["message"] = (f"KiCad {ver} 은 지원하지 않습니다 — KiCad {MIN_KICAD} 이상이 필요합니다 "
+                               f"(생성 파일은 KiCad {MIN_KICAD} 형식이라 KiCad {major} 에서는 열리지 않음). KiCad 검증은 생략됩니다.")
+            continue  # 더 새 버전이 다른 곳에 있으면 그것을 쓴다
+        info.update(ok=True, message=f"KiCad {ver or '?'}")
+        break
+    _KICAD_CACHE.update(at=time.time(), info=info)
+    return info
+
+
+def find_kicad_cli() -> str | None:
+    """검증에 쓸 수 있는(KiCad 9 이상) kicad-cli 경로."""
+    info = kicad_info()
+    return info["cli"] if info["ok"] else None
 
 
 def rect_gap(a, b) -> float:
@@ -153,9 +228,10 @@ def verify(spec: PartSpec, fp: Footprint) -> list[Check]:
 def kicad_render(sym_lib_text: str, sym_name: str, fp: Footprint) -> dict:
     """KiCad CLI 로 실제 파싱되는지 확인하고 SVG 미리보기를 만든다."""
     cli = find_kicad_cli()
-    res = {"cli": cli, "symbol_ok": None, "footprint_ok": None, "symbol_svg": "", "footprint_svg": "", "log": ""}
-    if not cli:
-        res["log"] = "kicad-cli 를 찾지 못해 KiCad 파싱 검증 생략"
+    res = {"cli": cli, "symbol_ok": None, "footprint_ok": None, "symbol_svg": "", "footprint_svg": "", "log": "",
+           "skipped": not cli}
+    if not cli:  # 없거나 KiCad 9 미만 — 부품 오류가 아니라 검증을 못 한 것
+        res["log"] = kicad_info()["message"]
         return res
     with tempfile.TemporaryDirectory() as td:
         sym_path = os.path.join(td, "check.kicad_sym")

@@ -44,14 +44,43 @@ async function loadStatus() {
     return false;
   }
   $("#bridgeDown").hidden = true;
-  $("#status").innerHTML = [
-    `<span class="chip">${esc(s.model)}</span>`,
-    s.backend === "cli"
-      ? `<span class="chip ${s.claude_cli ? "ok" : "bad"}" title="API 키 없이 로그인된 Claude Code CLI 사용">${s.claude_cli ? "Claude CLI 연결" : "Claude CLI 없음"}</span>`
-      : `<span class="chip ${s.api_key ? "ok" : "bad"}">${s.api_key ? "API 키 설정됨" : "API 키 없음"}</span>`,
-    `<span class="chip ${s.kicad_cli ? "ok" : "bad"}" title="${esc(s.kicad_cli || "")}">${s.kicad_cli ? "kicad-cli 사용 가능" : "kicad-cli 없음"}</span>`,
-  ].join("");
+  renderStatus(s);
   return true;
+}
+
+// 이 화면이 기대하는 브리지 버전 — app/__init__.py 의 __version__ 과 같이 올린다
+const PAGE_VERSION = "0.4.2";
+const verKey = (v) => String(v || "0").split(".").map((n) => parseInt(n, 10) || 0);
+const olderThan = (a, b) => { const x = verKey(a), y = verKey(b); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) < (y[i] || 0); } return false; };
+let statusTimer = null;
+
+function renderStatus(s) {
+  const k = s.kicad || {}, c = s.claude;
+  const chip = (ok, text, title = "") => `<span class="chip ${ok === null ? "" : ok ? "ok" : "bad"}" title="${esc(title)}">${esc(text)}</span>`;
+  $("#status").innerHTML = [
+    chip(null, s.model),
+    s.backend === "cli"
+      ? (!c || c.checking ? chip(null, "Claude CLI 확인 중…") : chip(c.ok, c.ok ? "Claude CLI 연결" : "Claude CLI 문제", c.message))
+      : chip(s.api_key, s.api_key ? "API 키 설정됨" : "API 키 없음"),
+    k.checking ? chip(null, "KiCad 확인 중…") : chip(k.ok, k.ok ? `KiCad ${k.version}` : "KiCad 검증 불가", k.message || ""),
+    chip(null, `브리지 v${s.version || "?"}`),
+  ].join("");
+
+  // 다른 PC 에서 흔한 문제를 화면 위에 알림
+  const warns = [];
+  if (!s.version || olderThan(s.version, PAGE_VERSION))
+    warns.push(`<b>브리지가 화면보다 오래되었습니다</b> (브리지 v${esc(s.version || "0.4.1 이하")} · 화면 v${PAGE_VERSION}). 브리지 폴더에서 <code>git pull</code> 후 브리지를 다시 실행하세요 — 새 기능이 동작하지 않을 수 있습니다.`);
+  if (!k.checking && k.ok === false) warns.push(`<b>KiCad</b> — ${esc(k.message)}`);
+  if (s.backend === "cli" && c && !c.checking && !c.ok) warns.push(`<b>Claude</b> — ${esc(c.message)}`);
+  if (s.backend !== "cli" && !s.api_key) warns.push("<b>Claude</b> — API 키도 Claude CLI 도 없습니다. Claude Code CLI 를 설치 · 로그인하거나 <code>.env</code> 에 ANTHROPIC_API_KEY 를 넣으세요.");
+  $("#envWarn").innerHTML = warns.map((w) => `<div>${w}</div>`).join("") + (warns.length ? `<button id="recheckBtn" class="small" type="button">다시 확인</button>` : "");
+  $("#envWarn").hidden = !warns.length;
+  const rb = $("#recheckBtn");
+  if (rb) rb.onclick = async () => { await api("/api/status?refresh=true"); clearTimeout(statusTimer); statusTimer = setTimeout(loadStatus, 1500); };
+
+  // 점검이 아직 끝나지 않았으면 잠시 뒤 다시 확인
+  clearTimeout(statusTimer);
+  if (k.checking || (c && c.checking)) statusTimer = setTimeout(loadStatus, 3000);
 }
 $("#retryBtn").onclick = async () => { if (await loadStatus()) { loadJobs(); loadLib(); } };
 $("#bridgeBtn").onclick = async () => {

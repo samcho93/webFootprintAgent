@@ -142,3 +142,5 @@ select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; ba
 .changelog h4 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); }
 .changelog p, .changelog li { font-size: 13px; }
 .changelog ul ul { margin-top: 4px; }
+#envWarn div { margin-bottom: 4px; }
+#envWarn button { margin-top: 4px; }
