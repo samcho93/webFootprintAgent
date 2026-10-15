@@ -270,9 +270,14 @@ $("#rerunBtn").onclick = () => resubmit(true);
 function showView(v) {
   $$("#menu button").forEach((b) => b.classList.toggle("on", b.dataset.view === v));
   ["work", "help", "pipe"].forEach((k) => ($(`#view-${k}`).hidden = k !== v));
-  if (location.hash !== "#" + v) history.replaceState(null, "", v === "work" ? location.pathname : "#" + v);
+  if (location.hash !== "#" + v) history.replaceState(null, "", location.pathname + location.search + (v === "work" ? "" : "#" + v));
 }
 $$("#menu button").forEach((b) => (b.onclick = () => showView(b.dataset.view)));
 showView(["help", "pipe"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "work");
 
-loadStatus().then((ok) => { if (ok) { loadJobs(); loadLib(); } });
+loadStatus().then((ok) => {
+  if (!ok) return;
+  loadJobs(); loadLib();
+  const jobParam = new URLSearchParams(location.search).get("job");  // ?job=<id> 로 결과 바로 열기
+  if (jobParam) openJob(jobParam);
+});
