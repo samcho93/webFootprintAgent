@@ -135,3 +135,10 @@ select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; ba
 #bTable td.note { white-space: normal; color: var(--muted); font-size: 12px; max-width: 320px; }
 .badge.skipped, .badge.stopped, .badge.pending { background: var(--bg); color: var(--muted); }
 .list li > span:first-child { min-width: 0; overflow: hidden; }
+/* ---------- 개발 · 수정 이력 (CHANGELOG.md 에서 생성) */
+.changelog details.ver { border: 1px solid var(--line); border-radius: 8px; padding: 0 14px; margin: 10px 0; }
+.changelog details.ver[open] { padding-bottom: 10px; }
+.changelog details.ver > summary { font-size: 14px; font-weight: 600; color: var(--ink); padding: 10px 0; margin: 0; }
+.changelog h4 { font-size: 13px; margin: 14px 0 6px; color: var(--muted); }
+.changelog p, .changelog li { font-size: 13px; }
+.changelog ul ul { margin-top: 4px; }

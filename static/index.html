@@ -169,7 +169,7 @@
 </main>
 <main id="view-help" class="doc" hidden>
   <div class="card">
-    <h2>사용법</h2>
+    <h2>사용법 <button type="button" class="ghost small" data-scroll="changelog">개발 · 수정 이력 ↓</button></h2>
     <h3>1. 준비</h3>
     <ul>
       <li><b>Claude 연결 (둘 중 하나)</b>
@@ -220,6 +220,127 @@
     <p><code>examples/</code> 폴더의 JSON 처럼 사양을 직접 작성해 사양 편집 탭에 붙여넣고 <b>즉시 재생성</b> 하면 생성 · 규칙 검증 · KiCad 검증까지 동작합니다.</p>
     <h3>주의</h3>
     <p class="hint">자동 생성 결과는 반드시 데이터시트와 대조해 확인한 뒤 실제 보드에 사용하세요. 특히 1번 핀 위치, 패드 번호 방향, 노출 패드(EP) 번호, 다이오드 극성은 검증 통과 후에도 눈으로 확인하는 것을 권장합니다.</p>
+  </div>
+  <div class="card changelog" id="changelog">
+    <h2>개발 · 수정 이력 <button type="button" class="ghost small" data-scroll="view-help">맨 위로 ↑</button></h2>
+    <!--CHANGELOG:START-->
+<p>KiCad Footprint Agent — 데이터시트에서 KiCad 회로 기호 · 풋프린트를 자동으로 만드는 웹 에이전트. 날짜는 KST. 커밋 해시는 GitHub <a href="https://github.com/samcho93/webFootprintAgent" target="_blank" rel="noopener">samcho93/webFootprintAgent</a> 기준이며, 첫 커밋(c72b6de) 전의 개발 과정은 단계별로 정리했다.</p>
+<table class="plain"><tr><th>버전</th><th>날짜</th><th>요약</th><th>커밋</th></tr><tr><td>0.4.1</td><td>2026-10-15</td><td>사용법 메뉴에 개발 · 수정 이력 표시</td><td>—</td></tr><tr><td>0.4.0</td><td>2026-10-15</td><td>폴더 일괄 생성</td><td>96bb45d</td></tr><tr><td>0.3.1</td><td>2026-10-15</td><td><code>?job=&lt;id&gt;</code> 로 결과 바로 열기</td><td>2be6411</td></tr><tr><td>0.3.0</td><td>2026-10-15</td><td>irodmas.com 배포 (정적 화면 + 로컬 브리지)</td><td>c72b6de</td></tr><tr><td>0.2.0</td><td>2026-10-15</td><td>API 키 없이 Claude Code CLI 로 동작</td><td>c72b6de</td></tr><tr><td>0.1.0</td><td>2026-10-15</td><td>초기 개발</td><td>c72b6de</td></tr></table>
+<details class="ver" open><summary>0.4.1 — 사용법 메뉴에 개발 · 수정 이력 표시</summary>
+<p><b>요청</b>: 개발 · 수정 이력을 사용법 메뉴에 추가.</p>
+<ul>
+<li>「사용법」 페이지 아래에 <b>개발 · 수정 이력</b> 카드 추가 — 버전별 접기(최신 버전만 펼침), 머리의 「개발 · 수정 이력 ↓」 · 「맨 위로 ↑」 이동 버튼.</li>
+<li>원본은 <code>CHANGELOG.md</code> 하나. irodmas.com 은 <code>static/</code> 만 복사하므로 <code>tools/sync_changelog.py</code> 가 Markdown 을 HTML 로 바꿔 <code>static/index.html</code> 의 표시 사이에 넣는다.</li>
+<li><code>tests/test_changelog.py</code>: CHANGELOG.md 를 고치고 반영을 잊으면 실패.</li>
+</ul>
+</details>
+<details class="ver"><summary>0.4.0 — 폴더 일괄 생성 (96bb45d)</summary>
+<p><b>요청</b>: 폴더를 지정해 저장되어 있는 데이터시트들의 풋프린트를 한 번에 만들기.</p>
+<h4>추가</h4>
+<ul>
+<li>화면 왼쪽 위 <b>단일 부품 / 폴더 일괄</b> 전환. 폴더 경로 입력 또는 <b>찾아보기</b>(브리지가 이 PC 의 드라이브 · 폴더 목록 제공), 하위 폴더 포함.</li>
+<li><b>PDF 찾기</b>: PDF 목록과 크기, 이미 라이브러리에 있는 데이터시트 표시(파일 SHA-1 비교) — 기본으로 선택 해제.</li>
+<li>일괄 큐: 동시 처리 1~3개, 이미 저장된 데이터시트 건너뛰기, <b>중지</b>(진행 중인 파일은 끝까지 처리).</li>
+<li>진행 표: 파일별 단계 · 결과(저장됨 / 검토 필요 / 실패 / 건너뜀), 행을 누르면 해당 부품 결과가 아래에 열림. 작업 기록에 일괄 작업 표시. <code>?batch=&lt;id&gt;</code> 로 진행 표 바로 열기.</li>
+<li>추출 프롬프트에 파일 이름을 부품 번호 <b>단서</b>로 전달 (문헌 번호 등 임의 이름일 수 있으므로 데이터시트로 확인될 때만 사용).</li>
+<li>저장 기록(<code>library/specs/*.json</code>)에 <code>datasheet_sha1</code> 추가. 이전 저장분은 <code>library/datasheets/*.pdf</code> 의 해시로 인식.</li>
+<li>API: <code>GET /api/fs/dirs</code>, <code>POST /api/batch/scan</code>, <code>POST /api/batch</code>, <code>GET /api/batch/{id}</code>, <code>POST /api/batch/{id}/stop</code>, <code>GET /api/batches</code>.</li>
+</ul>
+<h4>수정</h4>
+<ul>
+<li>여러 작업이 같은 심볼 라이브러리를 동시에 병합하지 않도록 저장을 잠금으로 직렬화.</li>
+<li>드라이브 목록이 7초 걸리던 문제(네트워크 드라이브 접근) → <code>GetLogicalDrives</code> 비트마스크로 즉시 표시.</li>
+<li>패드 피치 검사 오경고: SOT-23-5(3+2 배치)처럼 빈 자리가 있는 패키지에서 경고 → <b>가장 가까운 패드 간격</b>이 피치와 같은지로 판단.</li>
+<li>라이브러리 목록의 긴 이름이 가로 스크롤을 만들던 문제.</li>
+</ul>
+<h4>검증</h4>
+<ul>
+<li>실제 TI 데이터시트 3개 폴더, 동시 2: LM358DR 건너뜀(이미 저장), <b>SN74LVC1G14DBVR</b>(SOT-23-5, 1 NC · 2 A · 3 GND · 4 Y · 5 VCC) · <b>TPS62130RGT</b>(VQFN-16 3×3 + EP 17) 모두 AI 검토 통과 · 저장. 핀 대응은 데이터시트 핀 표와 일치.</li>
+<li>예제 6종 회귀 테스트 통과.</li>
+</ul>
+</details>
+<details class="ver"><summary>0.3.1 — 결과 바로 열기 (2be6411)</summary>
+<ul>
+<li><code>?job=&lt;id&gt;</code> 로 특정 작업 결과를 바로 연다 (대문 캡처 · 공유용).</li>
+<li>메뉴 전환 때 주소의 쿼리 문자열이 지워지던 문제 수정.</li>
+</ul>
+</details>
+<details class="ver"><summary>0.3.0 — irodmas.com 배포 (c72b6de)</summary>
+<p><b>요청</b>: irodmas.com 에 배포.</p>
+<p>irodmas.com 은 정적 파일만 서비스하므로 webCadAgent 와 같은 구조로 바꿨다 — 웹 화면은 irodmas.com, KiCad · Claude 는 사용자 PC 의 로컬 브리지에서 실행.</p>
+<ul>
+<li>로컬 브리지 <code>run.py</code> / <code>start.bat</code> (기본 <code>127.0.0.1:8766</code>, <code>--port</code>, <code>--no-open</code>).</li>
+<li>보안: 허용된 Origin(irodmas.com · www · samcho93.github.io · localhost)만 응답, 로컬 Host 만 처리(DNS 리바인딩 방지), Chrome 사설망 접근(<code>Access-Control-Allow-Private-Network</code>) 헤더.</li>
+<li>웹 화면: 브리지 주소 자동 선택(로컬은 같은 주소, 외부는 저장된 브리지 주소) · ⚙ 로 변경, 연결 안 됨 안내 배너, 정적 경로를 상대 경로로.</li>
+<li>GitHub 저장소 생성(공개, MIT) · GitHub Pages 켬, 루트 <code>index.html</code> → <code>static/</code> 이동.</li>
+<li>SamStudy 허브 등록 <a href="https://github.com/samcho93/SamStudy/pull/89" target="_blank" rel="noopener">samcho93/SamStudy#89</a>: Tools 카드(<code>webfootprintagent</code>, <code>root: static</code>) · 소개 글 · 960×600 대문 캡처. 허브 빌드(<code>build.mjs</code>)와 빌드 결과에서 브리지 연결 확인 후 머지.</li>
+<li>남은 일(관리자): 「강좌 다시 가져오기」, 강좌 탭에서 공개 · 무료/유료 · 속성 지정.</li>
+</ul>
+</details>
+<details class="ver"><summary>0.2.0 — Claude Code CLI 연동 (c72b6de)</summary>
+<p><b>요청</b>: API 키 없이 Claude CLI 로 webCadAgent 처럼 사용.</p>
+<ul>
+<li><code>app/agents/claude_cli.py</code>: 로그인된 <code>claude</code> CLI 를 헤드리스로 실행 (<code>claude -p --output-format stream-json --json-schema …</code>). PDF 는 임시 폴더에 두고 Read 도구로 읽기, 검색은 WebSearch · WebFetch, 결과는 <code>structured_output</code>.</li>
+<li>백엔드 자동 선택: <code>ANTHROPIC_API_KEY</code> 가 있으면 API, 없으면 CLI. <code>FP_AGENT_BACKEND=api|cli</code> 로 강제.</li>
+<li>서버가 시작할 때 프로젝트 <code>.env</code> 를 직접 읽음. 상단 칩에 「Claude CLI 연결」 표시.</li>
+<li>CLI 탐색은 셸과 같은 PATH 순서 (<code>~/.local/bin</code> 의 오래된 2.1.63 대신 npm 의 2.1.287 사용).</li>
+</ul>
+<h4>수정</h4>
+<ul>
+<li><b>구조화 출력 스키마 버그</b>: 스키마 변환이 <code>title</code> 키를 모두 지워 <code>title</code> 이라는 실제 필드까지 사라짐 → 데이터시트 검색이 실패. 속성 이름 맵은 건드리지 않도록 고침 (API 경로에도 같은 영향이 있었음).</li>
+<li>패드 사이에 짧은 실크 조각이 남던 문제 → 외곽 모서리에 이어진 실크만 남김.</li>
+</ul>
+<h4>검증</h4>
+<ul>
+<li><b>LM358DR</b> 전체 파이프라인(API 키 없음, 약 2.3분): TI 공식 데이터시트 검색 → 68쪽 중 24쪽 선택 → SOIC-8(D0008A) 추출, 핀 1~8 TI 핀 표와 일치, 패드는 TI 권장 랜드 패턴(1.55×0.6 mm, 열 간격 5.4 mm) 그대로 → 규칙 검증 0 오류 · kicad-cli 통과 · AI 검토 pass → 자동 저장.</li>
+</ul>
+</details>
+<details class="ver"><summary>0.1.0 — 초기 개발 (c72b6de)</summary>
+<p><b>요청</b>: 데이터시트를 열거나 링크로 연결해 핀 · 풋프린트 정보를 인식하여 KiCad 회로 기호 · 풋프린트를 자동 제작. 데이터시트가 없으면 에이전트가 찾아서 제작 → 검토 → 검증 → 저장.</p>
+<h4>구성</h4>
+<ul>
+<li><b>데이터 모델</b> (<code>app/models.py</code>): 모든 단계가 주고받는 <code>PartSpec</code>(핀, 패키지 치수, 랜드 패턴, 근거 페이지), 검토 결과, 검색 결과.</li>
+<li><b>KiCad 9 생성기</b></li>
+<ul>
+<li>회로 기호(<code>symbol.py</code>): 전원 위 · GND 아래 · 입력 왼쪽 · 출력 오른쪽 자동 배치, 100 mil 격자, 기능 그룹 정렬, Footprint · Datasheet 필드 연결.</li>
+<li>풋프린트(<code>footprint.py</code>): 패키지 유형 9종(걸윙 2열/4면, 노리드 2열/4면, 칩 2단자, DIP, 핀 헤더, BGA, 좌표 직접 지정). 데이터시트 권장 랜드 패턴 우선, 없으면 IPC-7351B Nominal 근사식. EP 페이스트 분할, 실크(패드 회피) · 팹(1번 핀 모따기) · 코트야드.</li>
+<li>라이브러리 저장(<code>library.py</code>): 심볼 라이브러리 병합(같은 이름 교체), <code>.pretty</code>, 사양 · 검증 · 검토 기록 JSON, 데이터시트 사본, <code>sym-lib-table</code> · <code>fp-lib-table</code>.</li>
+</ul>
+<li><b>검증</b> (<code>verify.py</code>): 핀 번호 중복, 격자, 심볼 ↔ 패드 1:1 대응, 패드 겹침 · 간격, 피치, 코트야드 포함, 애뉼러 링, 치수 상식 검사 + <code>kicad-cli</code> 로 실제 파싱 · 렌더링.</li>
+<li><b>Claude 에이전트</b>: 데이터시트 웹 검색(<code>finder.py</code>), 추출 · 독립 검토(<code>extractor.py</code>), 호출 래퍼(<code>llm.py</code> — 스트리밍, JSON 스키마 출력, 거절 시 대체 모델). 검토에서 오류가 나오면 수정 사양으로 재생성(최대 2회), 끝까지 통과하지 못하면 「검토 필요」.</li>
+<li><b>데이터시트 처리</b> (<code>datasheet.py</code>): 다운로드(HTML 이면 PDF 링크 추적), 키워드 점수로 관련 페이지 최대 24쪽 선택.</li>
+<li><b>웹 화면</b> (FastAPI + 바닐라 JS, 한국어): 입력 폼(부품 번호 · 링크 · PDF 끌어놓기 · 패키지 지정), 단계 표시 · 진행 로그, 결과 탭(미리보기 · 핀 · 패드 · 검증 · AI 검토 · 사양 편집), 저장 · 강제 저장 · 다운로드, 작업 기록 · 라이브러리 목록.</li>
+<li><b>메뉴</b>: 「사용법」, 「파이프라인 구조」 페이지 (개발 중 요청으로 추가).</li>
+</ul>
+<h4>개발 중 수정</h4>
+<ul>
+<li>QFN 코너 패드 1–16 이 맞닿음(간격 0 mm) → 측면 패드 안쪽 끝을 잘라 코너 간섭 방지, 노리드 heel 0 으로 조정 (KiCad 기본 QFN-16 3×3 과 거의 같은 패드).</li>
+<li>EP 축소 판정의 부동소수점 오차로 「1.7→1.7 축소」 메모가 나오던 문제.</li>
+<li><code>kicad-cli</code> 출력의 cp949 디코딩 오류(한글 Windows) → UTF-8 로 읽기.</li>
+<li><code>kicad-cli sym export svg</code> 가 필드 위치를 잘못 그려 미리보기를 자체 SVG 렌더러(<code>preview.py</code>, 핀 · 패드 번호 · 1번 핀 표시)로 교체하고, KiCad 렌더링은 체크박스로 비교.</li>
+<li><code>hidden</code> 속성이 grid 레이아웃에 덮여 메뉴 페이지가 겹치던 문제, 파이프라인 흐름도 줄바꿈.</li>
+<li>API 키가 없을 때 원시 예외 대신 한국어 안내 메시지.</li>
+</ul>
+<h4>취소된 요청</h4>
+<ul>
+<li>「추가 사항」 입력 창과 「외곽 고정 홀」(홀 크기 · 외곽 간격 지정, 없으면 자동 추가) — 요청 후 취소되어 구현하지 않음.</li>
+</ul>
+<h4>검증</h4>
+<ul>
+<li>예제 6종(SOIC-8, QFN-16+EP, SOT-23-3, 0603, DIP-8, BGA) 생성 → 규칙 검증 오류 0 → <code>kicad-cli</code> 파싱 · 렌더링 통과 (<code>tests/test_generators.py</code>).</li>
+<li>같은 라이브러리에 7번 저장 → 심볼 6개로 병합(중복 교체), 병합된 라이브러리 KiCad 에서 열림.</li>
+</ul>
+</details>
+<details class="ver"><summary>알려진 제한</summary>
+<ul>
+<li>한 데이터시트에서 대표 부품 · 패키지 하나만 만든다 (다른 변형은 단일 부품 모드의 「패키지 지정」으로 추가).</li>
+<li>심볼은 단일 유닛 (듀얼 옵앰프 등 다중 유닛 분리는 하지 않음).</li>
+<li><code>kicad-cli</code> 검증이 호출당 10~40초 걸려 부품 하나에 AI 단계 외 약 1분이 더 든다.</li>
+<li>3D 모델은 연결하지 않는다.</li>
+<li>자동 생성 결과는 실제 보드에 쓰기 전에 1번 핀 위치 · 패드 번호 방향 · EP 번호 · 극성을 데이터시트와 대조해야 한다.</li>
+</ul>
+</details>
+<!--CHANGELOG:END-->
   </div>
 </main>
 

@@ -4,7 +4,7 @@
 
 - 웹 화면: <https://irodmas.com/webfootprintagent/> (또는 로컬 `http://127.0.0.1:8766/`)
 - 구조 · 사용법: 화면 위 **사용법 · 파이프라인 구조** 메뉴
-- 개발 · 수정 이력: [CHANGELOG.md](CHANGELOG.md)
+- 개발 · 수정 이력: [CHANGELOG.md](CHANGELOG.md) — 화면 「사용법」 아래에도 표시 (고친 뒤 `python tools/sync_changelog.py` 로 반영)
 - KiCad · Claude 는 **내 PC 에서** 실행되므로, 웹 화면을 쓰기 전에 PC 에서 로컬 브리지를 먼저 켭니다.
 
 ```

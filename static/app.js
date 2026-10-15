@@ -274,6 +274,7 @@ function showView(v) {
   if (location.hash !== "#" + v) history.replaceState(null, "", location.pathname + location.search + (v === "work" ? "" : "#" + v));
 }
 $$("#menu button").forEach((b) => (b.onclick = () => showView(b.dataset.view)));
+$$("[data-scroll]").forEach((b) => (b.onclick = () => document.getElementById(b.dataset.scroll)?.scrollIntoView({ behavior: "smooth", block: "start" })));
 showView(["help", "pipe"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "work");
 
 loadStatus().then((ok) => {
