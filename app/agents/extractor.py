@@ -77,9 +77,12 @@ def _page_note(pages: list[int], total: int) -> str:
 
 
 def extract_spec(pdf_bytes: bytes, pages: list[int], total: int, part_number: str,
-                 package_hint: str = "", log=print) -> PartSpec:
+                 package_hint: str = "", log=print, filename_hint: str = "") -> PartSpec:
+    file_note = (f'The datasheet file is named "{filename_hint}". The name may contain the exact ordering code — '
+                 "use it to choose the part/package only if the datasheet confirms it; it may also be a literature "
+                 "number or an arbitrary name.\n") if filename_hint else ""
     task = f"""Task: extract everything needed to build a KiCad symbol and footprint for part "{part_number or '(determine from the datasheet)'}".
-{_page_note(pages, total)}
+{file_note}{_page_note(pages, total)}
 {"Requested package variant: " + package_hint if package_hint else "If the datasheet covers several packages, pick the one matching the part number's ordering code; if the part number does not identify one, pick the most common surface-mount variant and explain in extraction_notes."}
 
 Work carefully: first locate the pin-function table and the package drawing for the chosen variant, then fill

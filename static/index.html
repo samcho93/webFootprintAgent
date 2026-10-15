@@ -31,6 +31,10 @@
 
 <main id="view-work">
   <aside>
+    <nav class="modes-tab">
+      <button type="button" data-mode="single" class="on">단일 부품</button>
+      <button type="button" data-mode="batch">폴더 일괄</button>
+    </nav>
     <form id="form" class="card">
       <h2>새 부품</h2>
       <label>부품 번호 <input name="part_number" placeholder="예: LM358DR, STM32G031K8T6"></label>
@@ -50,8 +54,36 @@
       <p class="hint">링크·파일이 없으면 에이전트가 웹에서 공식 데이터시트를 찾습니다.</p>
     </form>
 
+    <div id="batchForm" class="card" hidden>
+      <h2>폴더 일괄 생성</h2>
+      <label>데이터시트 폴더
+        <div class="inrow"><input id="bFolder" placeholder="예: D:\Datasheets"><button id="bBrowse" type="button" class="ghost">찾아보기</button></div>
+      </label>
+      <div id="bBrowser" class="browser" hidden></div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="bRecursive"> 하위 폴더 포함</label>
+        <button id="bScan" type="button" class="ghost">PDF 찾기</button>
+      </div>
+      <div id="bFiles" class="filelist" hidden></div>
+      <label>라이브러리 이름 <input id="bLib" value="AutoParts"></label>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="bAi" checked> AI 검토</label>
+        <label class="check"><input type="checkbox" id="bSave" checked> 통과 시 자동 저장</label>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="bSkip" checked> 이미 저장된 데이터시트 건너뛰기</label>
+      </div>
+      <div class="row">
+        <label class="check">동시 처리
+          <select id="bParallel"><option>1</option><option selected>2</option><option>3</option></select></label>
+      </div>
+      <button id="bStart" type="button" class="primary" disabled>일괄 생성 시작</button>
+      <p class="hint">폴더의 PDF 마다 추출 → 생성 → 검증 → AI 검토 → 저장을 차례로 실행합니다. 파일 이름은 부품 번호 단서로만 쓰고, 실제 부품 · 패키지는 데이터시트 내용으로 판단합니다.</p>
+    </div>
+
     <div class="card">
       <h2>작업 기록</h2>
+      <ul id="batches" class="list"></ul>
       <ul id="jobs" class="list"></ul>
     </div>
     <div class="card">
@@ -70,6 +102,18 @@
         <li>회로 기호(.kicad_sym)와 풋프린트(.kicad_mod)를 생성합니다.</li>
         <li>규칙 검증 · KiCad CLI 파싱 · AI 교차 검토를 거쳐, 통과하면 라이브러리에 저장합니다.</li>
       </ol>
+    </div>
+
+    <div id="batchView" class="card" hidden>
+      <div class="jobhead">
+        <div><h2 id="bTitle">폴더 일괄 생성</h2><span id="bState" class="badge"></span></div>
+        <div class="actions"><button id="bStop" type="button" class="ghost">중지</button></div>
+      </div>
+      <p id="bFolderText" class="hint"></p>
+      <div class="progress"><div id="bBar"></div></div>
+      <div id="bCounts" class="counts"></div>
+      <div class="tablewrap"><table id="bTable"></table></div>
+      <p class="hint">행을 누르면 그 부품의 결과(미리보기 · 검증 · AI 검토)가 아래에 열립니다.</p>
     </div>
 
     <div id="jobView" hidden>
@@ -146,6 +190,16 @@
       <li><b>AI 검토</b> — 끄면 추출 결과로 바로 생성·규칙 검증만 합니다 (빠르지만 교차 검토 없음).</li>
       <li><b>통과 시 자동 저장</b> — 규칙 검증 · KiCad 파싱 · AI 검토를 모두 통과하면 라이브러리에 바로 저장합니다.</li>
     </ul>
+    <h3>2-1. 폴더 일괄 생성</h3>
+    <p>데이터시트 PDF 가 모여 있는 폴더를 지정해 한 번에 만듭니다. 왼쪽 위 <b>폴더 일괄</b> 을 누르세요.</p>
+    <ol>
+      <li><b>폴더 지정</b> — 경로를 붙여넣거나 <b>찾아보기</b> 로 내 PC 의 폴더를 고릅니다 (브리지가 이 PC 의 폴더 목록을 보여 줍니다). 필요하면 <b>하위 폴더 포함</b>.</li>
+      <li><b>PDF 찾기</b> — 폴더의 PDF 목록이 나옵니다. 이미 라이브러리에 저장된 데이터시트(파일 내용 SHA-1 이 같은 것)는 초록 표시와 함께 선택이 풀려 있습니다. 만들 파일만 체크합니다.</li>
+      <li><b>옵션</b> — 라이브러리 이름, AI 검토, 통과 시 자동 저장, 이미 저장된 데이터시트 건너뛰기, <b>동시 처리</b>(1~3개, Claude 사용량과 PC 성능에 맞춰 조절).</li>
+      <li><b>일괄 생성 시작</b> — 오른쪽 진행 표에서 파일별 단계 · 결과(저장됨 / 검토 필요 / 실패 / 건너뜀)를 봅니다. 행을 누르면 그 부품의 미리보기 · 검증 · AI 검토가 아래에 열리고, 검토 필요 항목은 거기서 고쳐 저장합니다.</li>
+      <li><b>중지</b> — 진행 중인 파일은 끝까지 처리하고 남은 파일은 건너뜁니다.</li>
+    </ol>
+    <p class="hint">파일 이름은 부품 번호 단서로만 쓰고, 실제 부품 · 패키지는 데이터시트 내용으로 판단합니다. 한 데이터시트에 여러 부품 · 패키지가 있으면 대표 하나만 만들므로, 다른 변형은 단일 부품 모드에서 <b>패키지 지정</b> 으로 추가하세요.</p>
     <h3>3. 결과 확인</h3>
     <table class="plain">
       <tr><th>탭</th><th>내용</th></tr>
@@ -200,12 +254,13 @@
       <tr><td>④ 생성</td><td>코드</td><td>심볼: 전원 위/GND 아래/입력 왼쪽/출력 오른쪽 자동 배치, 100 mil 격자. 풋프린트: 패키지 유형별 IPC-7351B Nominal 계산, 코너 간섭·EP 간격 자동 보정, EP 페이스트 분할, 실크/팹/코트야드</td><td>.kicad_sym, .kicad_mod</td></tr>
       <tr><td>⑤ 검증</td><td>코드 + kicad-cli</td><td>핀 번호 중복, 심볼↔패드 1:1 대응, 패드 겹침/간격, 피치 일치, 코트야드 포함, 애뉼러 링, 치수 상식 검사, KiCad 파싱·렌더링</td><td>검증 리포트</td></tr>
       <tr><td>⑥ AI 검토</td><td>Claude (독립 검토자)</td><td>“틀렸다고 가정하고” 데이터시트와 항목별 대조. 오류가 있으면 수정된 전체 사양 제시</td><td>판정 · 지적 사항 · 수정 사양</td></tr>
-      <tr><td>⑦ 저장</td><td>코드</td><td>심볼 라이브러리에 병합(같은 이름 교체), 풋프린트 파일, 사양·검증·검토 기록 JSON, 데이터시트 사본, lib-table 생성</td><td>library/</td></tr>
+      <tr><td>⑦ 저장</td><td>코드</td><td>심볼 라이브러리에 병합(같은 이름 교체), 풋프린트 파일, 사양·검증·검토 기록 JSON(데이터시트 SHA-1 포함), 데이터시트 사본, lib-table 생성</td><td>library/</td></tr>
+      <tr><td>폴더 일괄</td><td>코드</td><td>폴더의 PDF 를 큐에 넣고 동시 처리 수만큼 ①~⑦ 을 반복. 데이터시트 SHA-1 로 이미 저장된 파일은 건너뛰고, 라이브러리 병합은 잠금으로 한 번에 하나씩 기록</td><td>파일별 결과 표</td></tr>
     </table>
 
     <h3>구성 파일</h3>
     <table class="plain">
-      <tr><td><code>app/pipeline.py</code></td><td>작업 관리와 단계 오케스트레이션 (검토 반복 루프 포함)</td></tr>
+      <tr><td><code>app/pipeline.py</code></td><td>작업 관리와 단계 오케스트레이션 (검토 반복 루프, 폴더 일괄 큐 포함)</td></tr>
       <tr><td><code>app/agents/finder.py</code></td><td>데이터시트 웹 검색 에이전트</td></tr>
       <tr><td><code>app/agents/extractor.py</code></td><td>추출 · 검토 에이전트 프롬프트</td></tr>
       <tr><td><code>app/agents/llm.py</code></td><td>Claude 호출 — API(스트리밍, JSON 스키마 출력, 거절 시 대체 모델) 또는 CLI 백엔드 선택</td></tr>

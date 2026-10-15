@@ -126,11 +126,11 @@ def verify(spec: PartSpec, fp: Footprint) -> list[Check]:
         for a in sig:
             d = min(((a.x - b.x) ** 2 + (a.y - b.y) ** 2) ** 0.5 for b in sig if b is not a)
             nn.append(d)
-        bad = [d for d in nn if abs(d - pkg.pitch) > 0.01]
-        if bad:
-            add("warning", "pads.pitch", f"인접 패드 거리 {min(nn):.3f}–{max(nn):.3f} mm, 피치 {pkg.pitch} 과 다름")
+        # 가장 가까운 패드 간격이 피치와 같아야 한다 (SOT-23-5 처럼 빈 자리가 있어 더 먼 것은 정상)
+        if abs(min(nn) - pkg.pitch) > 0.01:
+            add("warning", "pads.pitch", f"가장 가까운 패드 간격 {min(nn):.3f} mm 가 피치 {pkg.pitch} mm 와 다름")
         else:
-            add("ok", "pads.pitch", f"인접 패드 간격 = 피치 {pkg.pitch} mm")
+            add("ok", "pads.pitch", f"가장 가까운 패드 간격 = 피치 {pkg.pitch} mm")
 
     # --- 코트야드 / 드릴
     c = fp.courtyard

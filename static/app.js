@@ -1,7 +1,8 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-const STATUS_KO = { queued: "대기", running: "진행 중", passed: "검증 통과", needs_review: "검토 필요", failed: "실패", saved: "저장됨" };
+const STATUS_KO = { queued: "대기", running: "진행 중", passed: "검증 통과", needs_review: "검토 필요", failed: "실패", saved: "저장됨",
+  pending: "대기", skipped: "건너뜀", stopped: "중지됨", stopping: "중지 중", done: "완료" };
 
 // 로컬(브리지가 직접 서비스)에서 열면 같은 주소, irodmas.com 등에서 열면 이 PC 의 브리지 주소
 const store = {
@@ -277,7 +278,137 @@ showView(["help", "pipe"].includes(location.hash.slice(1)) ? location.hash.slice
 
 loadStatus().then((ok) => {
   if (!ok) return;
-  loadJobs(); loadLib();
+  loadJobs(); loadLib(); loadBatches();
   const jobParam = new URLSearchParams(location.search).get("job");  // ?job=<id> 로 결과 바로 열기
   if (jobParam) openJob(jobParam);
+  const batchParam = new URLSearchParams(location.search).get("batch");  // ?batch=<id> 로 일괄 진행 표 열기
+  if (batchParam) { setMode("batch"); openBatch(batchParam); }
 });
+
+// ======================================================================= 폴더 일괄
+let currentBatch = null, batchTimer = null, scanned = [];
+
+$$(".modes-tab button").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
+function setMode(m) {
+  $$(".modes-tab button").forEach((x) => x.classList.toggle("on", x.dataset.mode === m));
+  $("#form").hidden = m !== "single";
+  $("#batchForm").hidden = m !== "batch";
+  store.set("mode", m);
+}
+setMode(store.get("mode", "single"));
+$("#bFolder").value = store.get("batchFolder", "");
+
+// 폴더 찾아보기 (브리지가 이 PC 의 폴더 목록을 보여 줌)
+async function browse(path) {
+  const box = $("#bBrowser");
+  box.hidden = false;
+  box.innerHTML = `<div class="cur">불러오는 중…</div>`;
+  let d;
+  try { d = await api(`/api/fs/dirs?path=${encodeURIComponent(path || "")}`); }
+  catch (e) { box.innerHTML = `<div class="cur">${esc(e.message)}</div>`; return; }
+  const base = (p) => p.replace(/[\\/]+$/, "").split(/[\\/]/).pop() || p;
+  box.innerHTML = `<div class="cur"><span>${esc(d.path || "내 PC")}${d.path ? ` · PDF ${d.pdfs}개` : ""}</span>${d.path ? `<button type="button" class="small primary" id="bPick">이 폴더 선택</button>` : ""}</div>` +
+    (d.parent !== null && d.path ? `<div data-p="${esc(d.parent)}">⬆ 상위 폴더</div>` : "") +
+    d.dirs.map((p) => `<div data-p="${esc(p)}">📁 ${esc(d.path ? base(p) : p)}</div>`).join("");
+  $$("#bBrowser [data-p]").forEach((el) => (el.onclick = () => browse(el.dataset.p)));
+  const pick = $("#bPick");
+  if (pick) pick.onclick = () => { $("#bFolder").value = d.path; box.hidden = true; scan(); };
+}
+$("#bBrowse").onclick = () => ($("#bBrowser").hidden ? browse($("#bFolder").value.trim()) : ($("#bBrowser").hidden = true));
+
+async function scan() {
+  const folder = $("#bFolder").value.trim();
+  if (!folder) { alert("폴더 경로를 입력하거나 찾아보기로 선택하세요"); return; }
+  const list = $("#bFiles");
+  list.hidden = false; list.innerHTML = `<label class="head">찾는 중…</label>`;
+  try {
+    const r = await api("/api/batch/scan", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder, recursive: $("#bRecursive").checked }) });
+    scanned = r.files;
+    $("#bFolder").value = r.folder;
+    store.set("batchFolder", r.folder);
+  } catch (e) { list.innerHTML = `<label class="head">${esc(e.message)}</label>`; scanned = []; updateStart(); return; }
+  const skip = $("#bSkip").checked;
+  list.innerHTML = !scanned.length ? `<label class="head">PDF 가 없습니다</label>` :
+    `<label class="head"><input type="checkbox" id="bAll" checked><span class="n">PDF ${scanned.length}개</span></label>` +
+    scanned.map((f, i) => `<label title="${esc(f.path)}"><input type="checkbox" data-i="${i}" ${skip && f.in_library ? "" : "checked"}>
+      <span class="n">${esc(f.name)}</span>${f.in_library ? `<span class="tag" title="이미 라이브러리에 있음">${esc(f.part || "저장됨")}</span>` : ""}
+      <span class="sub">${(f.size / 1048576).toFixed(1)}MB</span></label>`).join("");
+  const all = $("#bAll");
+  if (all) all.onchange = () => { $$("#bFiles input[data-i]").forEach((c) => (c.checked = all.checked)); updateStart(); };
+  $$("#bFiles input[data-i]").forEach((c) => (c.onchange = updateStart));
+  updateStart();
+}
+$("#bScan").onclick = scan;
+$("#bRecursive").onchange = () => scanned.length && scan();
+function selectedFiles() { return $$("#bFiles input[data-i]:checked").map((c) => scanned[+c.dataset.i].path); }
+function updateStart() {
+  const n = selectedFiles().length;
+  $("#bStart").disabled = !n;
+  $("#bStart").textContent = n ? `일괄 생성 시작 (${n}개)` : "일괄 생성 시작";
+}
+
+$("#bStart").onclick = async () => {
+  const files = selectedFiles();
+  if (!files.length) return;
+  $("#bStart").disabled = true;
+  try {
+    const { id } = await api("/api/batch", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ folder: $("#bFolder").value.trim(), files, lib_name: $("#bLib").value || "AutoParts",
+        ai_review: $("#bAi").checked, auto_save: $("#bSave").checked, parallel: +$("#bParallel").value, skip_existing: $("#bSkip").checked }) });
+    openBatch(id); loadBatches();
+  } catch (e) { alert(e.message); }
+  finally { updateStart(); }
+};
+
+async function loadBatches() {
+  let list = [];
+  try { list = await api("/api/batches"); } catch { return; }
+  $("#batches").innerHTML = list.map((b) => `<li data-b="${b.id}" class="${b.id === currentBatch ? "sel" : ""}">
+    <span>📁 ${esc(b.folder.split(/[\\/]/).pop() || b.folder)} · ${b.total}개<div class="sub">${esc(b.created.replace("T", " "))}</div></span>
+    <span class="badge ${b.status === "done" ? "passed" : b.status === "running" ? "running" : "stopped"}">${STATUS_KO[b.status] || b.status}</span></li>`).join("");
+  $$("#batches li").forEach((li) => (li.onclick = () => openBatch(li.dataset.b)));
+}
+
+function openBatch(id) {
+  showView("work");
+  currentBatch = id;
+  $("#empty").hidden = true;
+  $("#batchView").hidden = false;
+  clearTimeout(batchTimer);
+  pollBatch();
+}
+
+async function pollBatch() {
+  if (!currentBatch) return;
+  const id = currentBatch;
+  let b;
+  try { b = await api(`/api/batch/${id}`); } catch { return; }
+  if (id !== currentBatch) return;
+  renderBatch(b);
+  if (["running", "stopping"].includes(b.status)) batchTimer = setTimeout(pollBatch, 2000);
+  else { loadBatches(); loadJobs(); loadLib(); }
+}
+
+const STAGE_KO = { acquire: "자료 확보", search: "검색", extract: "추출", generate: "생성", verify: "검증", review: "AI 검토", done: "완료" };
+function renderBatch(b) {
+  $("#bTitle").textContent = `폴더 일괄 생성 · ${b.items.length}개`;
+  $("#bState").className = `badge ${b.status === "done" ? "passed" : b.status === "running" ? "running" : "stopped"}`;
+  $("#bState").textContent = STATUS_KO[b.status] || b.status;
+  $("#bFolderText").textContent = `${b.folder} → 라이브러리 ${b.lib_name} · 동시 ${b.parallel} · AI 검토 ${b.ai_review ? "켬" : "끔"} · 자동 저장 ${b.auto_save ? "켬" : "끔"}`;
+  $("#bStop").hidden = b.status !== "running";
+  const finished = b.items.filter((i) => !["pending", "running", "queued"].includes(i.status)).length;
+  $("#bBar").style.width = `${(100 * finished) / b.items.length}%`;
+  $("#bCounts").innerHTML = Object.entries(b.counts).map(([k, v]) => `<span class="badge ${k}">${STATUS_KO[k] || k} ${v}</span>`).join("");
+  $("#bTable").innerHTML = `<thead><tr><th>#</th><th>파일</th><th>부품</th><th>패키지</th><th>상태</th><th>메모</th></tr></thead><tbody>` +
+    b.items.map((it, i) => `<tr ${it.job_id ? `data-job="${it.job_id}"` : ""} class="${it.job_id && it.job_id === currentJob ? "sel" : ""}">
+      <td class="num">${i + 1}</td><td title="${esc(it.path)}">${esc(it.name)}</td><td>${esc(it.part)}</td><td>${esc(it.package)}</td>
+      <td><span class="badge ${it.status}">${STATUS_KO[it.status] || it.status}${it.status === "running" && it.stage ? " · " + esc(STAGE_KO[it.stage.split("#")[0]] || it.stage) : ""}</span></td>
+      <td class="note">${esc((it.note || "").slice(0, 160))}</td></tr>`).join("") + "</tbody>";
+  $$("#bTable tr[data-job]").forEach((tr) => (tr.onclick = () => { openJob(tr.dataset.job); $$("#bTable tr").forEach((x) => x.classList.toggle("sel", x === tr)); }));
+}
+
+$("#bStop").onclick = async () => {
+  if (!confirm("진행 중인 파일은 끝까지 처리하고, 남은 파일은 건너뜁니다. 중지할까요?")) return;
+  try { renderBatch(await api(`/api/batch/${currentBatch}/stop`, { method: "POST" })); } catch (e) { alert(e.message); }
+};

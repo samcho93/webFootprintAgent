@@ -112,3 +112,26 @@ table.plain { margin-top: 10px; } table.plain td { white-space: normal; vertical
 @media (max-width: 900px) { .node { flex: 1 1 140px; } }
 .banner { max-width: 1600px; margin: 12px auto 0; padding: 12px 16px; border: 1px solid var(--warn); background: var(--warn-bg); border-radius: 10px; font-size: 13px; width: calc(100% - 40px); }
 .banner code { background: var(--code); padding: 1px 5px; border-radius: 4px; }
+/* ---------- 폴더 일괄 */
+.modes-tab { display: flex; gap: 4px; margin-bottom: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
+.modes-tab button { flex: 1; border: 0; background: none; color: var(--muted); padding: 7px; }
+.modes-tab button.on { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.inrow { display: flex; gap: 6px; margin-top: 4px; } .inrow input { margin-top: 0; } .inrow button { white-space: nowrap; }
+.browser { border: 1px solid var(--line); border-radius: 6px; max-height: 220px; overflow: auto; margin-bottom: 10px; font-size: 13px; }
+.browser div { padding: 5px 9px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.browser div:hover { background: var(--bg); }
+.browser .cur { position: sticky; top: 0; background: var(--panel); border-bottom: 1px solid var(--line); font-weight: 600; cursor: default; display: flex; justify-content: space-between; gap: 6px; align-items: center; }
+.filelist { border: 1px solid var(--line); border-radius: 6px; max-height: 260px; overflow: auto; margin-bottom: 10px; font-size: 12.5px; }
+.filelist label { display: flex; gap: 6px; align-items: center; font-weight: 400; margin: 0; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.filelist label span.n { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filelist .head { position: sticky; top: 0; background: var(--panel); font-weight: 600; }
+.tag { font-size: 11px; padding: 0 6px; border-radius: 99px; background: var(--ok-bg); color: var(--ok); white-space: nowrap; }
+select { padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); font: inherit; margin-left: 4px; }
+.progress { height: 8px; background: var(--bg); border-radius: 99px; overflow: hidden; margin: 8px 0; }
+.progress div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+.counts { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+#bTable tr[data-job] { cursor: pointer; } #bTable tr[data-job]:hover td { background: var(--bg); }
+#bTable tr.sel td { background: var(--bg); }
+#bTable td.note { white-space: normal; color: var(--muted); font-size: 12px; max-width: 320px; }
+.badge.skipped, .badge.stopped, .badge.pending { background: var(--bg); color: var(--muted); }
+.list li > span:first-child { min-width: 0; overflow: hidden; }

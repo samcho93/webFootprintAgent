@@ -24,7 +24,8 @@ from .agents.llm import MODEL, backend  # noqa: E402
 from .kicad.library import list_library
 from .kicad.verify import find_kicad_cli
 from .models import PartSpec
-from .pipeline import JOBS, LIB_DIR, ROOT, WORK_DIR, JobInput, do_save, evaluate, start_job
+from .pipeline import (BATCHES, JOBS, LIB_DIR, ROOT, WORK_DIR, JobInput, do_save, evaluate,  # noqa: E402
+                       list_dirs, scan_folder, start_batch, start_job, stop_batch)
 
 app = FastAPI(title="KiCad Footprint Agent")
 STATIC = os.path.join(ROOT, "static")
@@ -188,6 +189,71 @@ def download(job_id: str, kind: str):
 @app.get("/api/library")
 def library():
     return {"dir": LIB_DIR, "parts": list_library(LIB_DIR)}
+
+
+# ---------------------------------------------------------------- 폴더 일괄 생성
+@app.get("/api/fs/dirs")
+def fs_dirs(path: str = ""):
+    try:
+        return list_dirs(path)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+class ScanReq(BaseModel):
+    folder: str
+    recursive: bool = False
+
+
+@app.post("/api/batch/scan")
+def batch_scan(req: ScanReq):
+    try:
+        files = scan_folder(req.folder, req.recursive)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"folder": os.path.abspath(req.folder), "files": files}
+
+
+class BatchReq(BaseModel):
+    folder: str
+    files: list[str]
+    lib_name: str = "AutoParts"
+    ai_review: bool = True
+    auto_save: bool = True
+    parallel: int = 1
+    skip_existing: bool = True
+
+
+@app.post("/api/batch")
+def batch_start(req: BatchReq):
+    if any(b.status in ("running", "stopping") for b in BATCHES.values()):
+        raise HTTPException(409, "이미 진행 중인 일괄 작업이 있습니다 — 끝나거나 중지한 뒤 시작하세요")
+    try:
+        b = start_batch(req.folder, req.files, lib_name=_lib(req.lib_name), ai_review=req.ai_review,
+                        auto_save=req.auto_save, parallel=req.parallel, skip_existing=req.skip_existing)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    return {"id": b.id}
+
+
+@app.get("/api/batches")
+def batches():
+    return [{"id": b.id, "folder": b.folder, "status": b.status, "created": b.created, "total": len(b.items)}
+            for b in sorted(BATCHES.values(), key=lambda b: b.created, reverse=True)]
+
+
+@app.get("/api/batch/{batch_id}")
+def batch_get(batch_id: str):
+    if batch_id not in BATCHES:
+        raise HTTPException(404, "일괄 작업 없음")
+    return BATCHES[batch_id].to_dict()
+
+
+@app.post("/api/batch/{batch_id}/stop")
+def batch_stop(batch_id: str):
+    if batch_id not in BATCHES:
+        raise HTTPException(404, "일괄 작업 없음")
+    return stop_batch(batch_id).to_dict()
 
 
 app.mount("/", StaticFiles(directory=STATIC, html=True), name="static")
